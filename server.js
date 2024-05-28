@@ -22,6 +22,8 @@ async function main() {
 
 app.set("view engine", "ejs");
 app.set("view", path.join(__dirname, "views"));
+app.use(express.json());
+app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -39,7 +41,7 @@ app.post("/register", async (req, res) => {
         }
         // check if user already exist
         const existingUser = await User.findOne({ email });
-        if(existingUser) {
+        if (existingUser) {
             res.status(401).send("user already exist");
         }
         //encrypt password
@@ -54,11 +56,11 @@ app.post("/register", async (req, res) => {
 
         //generate token and send it
         const token = jwt.sign(
-            {id: user._id, email},
-                "shhhhh", //jwtseceret
-                {
-                   expiresIn: "30m" 
-                }
+            { id: user._id, email },
+            "shhhhh", //jwtseceret
+            {
+                expiresIn: "30m"
+            }
         );
         user.token = token;
         user.password = undefined;
@@ -72,21 +74,50 @@ app.post("/register", async (req, res) => {
 
 app.post("/login", async (req, res) => {
     try {
-        
+        //get data from req body
+        const { email, password } = req.body;
+
+        //validation
+        if (!(email && password)) {
+            res.status(400).send("enter right email and password");
+        }
+        //find the user in database
+        const user = await User.findOne({ email });
+
+        //if user not exist
+        if (!user) {
+            res.status(500).send("user not found");
+        }
+
+        //match the user password
+        if (user && (await bcrypt.compare(password, user.password))) {
+            const token = jwt.sign(
+                { id: user._id },
+                "shhhhh", //jwtseceret
+                {
+                    expiresIn: "30m"
+                }
+            );
+            user.token = token;
+            user.password = password;
+
+            //send the token in user cookie
+            const options = {
+                expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+                httpOnly: true
+            };
+            res.status(200).cookie("token", token, options).json({
+                success: true,
+                token,
+                user
+            });
+
+        }
+
     } catch (err) {
         console.log(err);
     }
-})
-// app.get("/test", async (req, res) => {
-//     let demoUser = new User({
-//         name: "shobhit",
-//         email: "shobbitjain13@gmail.com",
-//         password: "123456",
-//     });
-//     await demoUser.save();
-//     res.send("This is root path");
-// });
-
+});
 
 
 
