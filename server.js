@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const User = require("./models/user.js");
 const methodOverride = require("method-override");
 const cookieParser = require("cookie-parser");
+const bodyParser = require('body-parser');
 const bcrypt = require("bcryptjs");
 const jwt = require('jsonwebtoken');
 
@@ -24,30 +25,37 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.json());
 app.use(cookieParser());
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 
 app.get("/", (req, res) => {
-    res.send("Root path");
+    res.send("This is Root path");
+});
+
+app.get("/home", (req, res) => {
+    res.send("Course page");
+});
+
+app.get("/validation", (req, res) => {
+    res.render("validation.ejs");
 });
 
 app.get("/register", (req, res) => {
-    res.render("register.ejs");
+    res.render("register.ejs", {message: null});
 });
 
 app.post("/register", async (req, res) => {
     try {
+        
         //colect data from req body
         const { name, email, password } = req.body;
         
-        if (!(name && email && password)) {
-            res.status(400).send("all fields are compulsory")
-        }
         // check if user already exist
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            res.status(401).send("user already exist");
+            res.render("register.ejs",{message: "User already exist"});
         }
         //encrypt password
         const encPassword = await bcrypt.hash(password, 10);
@@ -59,7 +67,7 @@ app.post("/register", async (req, res) => {
             password: encPassword
         });
 
-        //generate token and send it
+        //generate token
         const token = jwt.sign(
             { id: user._id, email },
             "shhhhh", //jwtseceret
@@ -70,59 +78,55 @@ app.post("/register", async (req, res) => {
         user.token = token;
         user.password = undefined;
 
-        res.status(201).json(user);
+        res.redirect("/login");
 
     } catch (err) {
         console.log(err);
     }
 });
 
-// app.post("/login", async (req, res) => {
-//     try {
-//         //get data from req body
-//         const { email, password } = req.body;
+app.get("/login", (req, res) => {
+    res.render("login.ejs", {message: null});
+});
 
-//         //validation
-//         if (!(email && password)) {
-//             res.status(400).send("enter right email and password");
-//         }
-//         //find the user in database
-//         const user = await User.findOne({ email });
+app.post("/login", async (req, res) => {
+    try {
+        //get data from req body
+        const { email, password } = req.body;
 
-//         //if user not exist
-//         if (!user) {
-//             res.status(500).send("user not found");
-//         }
+        // //find the user in database
+        const user = await User.findOne({ email });
 
-//         //match the user password
-//         if (user && (await bcrypt.compare(password, user.password))) {
-//             const token = jwt.sign(
-//                 { id: user._id },
-//                 "shhhhh", //jwtseceret
-//                 {
-//                     expiresIn: "30m"
-//                 }
-//             );
-//             user.token = token;
-//             user.password = password;
+        // //if user not exist
+        if (!user) {
+            res.render("login.ejs",{message: "User not exist"});
+        }
 
-//             //send the token in user cookie
-//             const options = {
-//                 expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-//                 httpOnly: true
-//             };
-//             res.status(200).cookie("token", token, options).json({
-//                 success: true,
-//                 token,
-//                 user
-//             });
+        //match the user password
+        if (user && (await bcrypt.compare(password, user.password))) {
+            const token = jwt.sign(
+                { id: user._id },
+                "shhhhh", //jwtseceret
+                {
+                    expiresIn: "30m"
+                }
+            );
+            user.token = token;
+            user.password = password;
 
-//         }
+            //send the token in user cookie
+            const options = {
+                expires: new Date(Date.now() + 30 * 60 * 1000),
+                httpOnly: true
+            };
+            res.redirect("/home");
 
-//     } catch (err) {
-//         console.log(err);
-//     }
-// });
+        }
+
+    } catch (err) {
+        console.log(err);
+    }
+});
 
 
 
