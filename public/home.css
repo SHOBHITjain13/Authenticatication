@@ -1,0 +1,15 @@
+h1{
+    text-align: center;
+    margin-top: 20px;
+}
+
+.lgo-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: green;
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 16px;
+}

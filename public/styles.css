@@ -106,7 +106,7 @@ p{
     margin-bottom: 15px;
 }
 
-/* home page styles */
+/* validation page styles */
 .home{
     display: flex;
     justify-content: center;
@@ -133,3 +133,5 @@ p{
     width: 100%;
     text-align: center;
 }
+
+

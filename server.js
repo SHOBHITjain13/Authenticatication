@@ -1,4 +1,7 @@
 const express = require("express");
+const session = require("express-session");
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const path = require("path");
 const app = express();
 const mongoose = require("mongoose");
@@ -29,7 +32,35 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
+app.use(session({
+    secret: process.env.SECRET,
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false },
+}));
 
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use(new GoogleStrategy({
+    clientID: "4602815557-0qerqr4e2quv245j1onagfq0ptk9944b.apps.googleusercontent.com",
+    clientSecret: "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",
+    callbackURL: "http://localhost:3000/auth/google/callback",
+}, function (accessToken, refreshToken, profile, cb) {
+    cb(null, profile);
+}
+));
+
+passport.serializeUser(function (user, cb) {
+    cb(null, user);
+});
+
+passport.deserializeUser(function (obj, cb) {
+    cb(null, obj);
+});
+
+
+// Api for paths
 app.get("/", (req, res) => {
     res.send("This is Root path");
 });
@@ -38,20 +69,26 @@ app.get("/validation", (req, res) => {
     res.render("validation.ejs");
 });
 
+app.get("/home", (req, res) => {
+     res.render("home.ejs" , {
+            user: req.user
+        });
+});
+
 app.get("/register", (req, res) => {
-    res.render("register.ejs", {message: null});
+    res.render("register.ejs", { message: null });
 });
 
 app.post("/register", async (req, res) => {
     try {
-        
+
         //colect data from req body
         const { name, email, password } = req.body;
-        
+
         // check if user already exist
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            res.render("register.ejs",{message: "User already exist"});
+            res.render("register.ejs", { message: "User already exist" });
         }
         //encrypt password
         const encPassword = await bcrypt.hash(password, 10);
@@ -82,7 +119,7 @@ app.post("/register", async (req, res) => {
 });
 
 app.get("/login", (req, res) => {
-    res.render("login.ejs", {message: null});
+    res.render("login.ejs", { message: null });
 });
 
 app.post("/login", async (req, res) => {
@@ -95,7 +132,7 @@ app.post("/login", async (req, res) => {
 
         // //if user not exist
         if (!user) {
-            res.render("login.ejs",{message: "User not exist"});
+            res.render("login.ejs", { message: "User not exist" });
         }
 
         //match the user password
@@ -115,7 +152,7 @@ app.post("/login", async (req, res) => {
                 expires: new Date(Date.now() + 30 * 60 * 1000),
                 httpOnly: true
             };
-            res.redirect("/");
+            res.redirect("/home");
 
         }
 
@@ -123,6 +160,22 @@ app.post("/login", async (req, res) => {
         console.log(err);
     }
 });
+
+app.get("/logout", (req, res) => {
+    req.logout(function (err){
+        if(err){
+            console.log(err);
+        }else{
+            res.redirect("/register");
+        }
+    });
+});
+
+app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"]}));
+
+app.get("/auth/google/callback", passport.authenticate("google", {failureRedirect: "/register"}), async (req, res) => {
+    res.redirect("/home");
+})
 
 
 
