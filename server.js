@@ -34,10 +34,6 @@ app.get("/", (req, res) => {
     res.send("This is Root path");
 });
 
-app.get("/home", (req, res) => {
-    res.send("Course page");
-});
-
 app.get("/validation", (req, res) => {
     res.render("validation.ejs");
 });
@@ -67,7 +63,7 @@ app.post("/register", async (req, res) => {
             password: encPassword
         });
 
-        //generate token
+        //generate token and send it
         const token = jwt.sign(
             { id: user._id, email },
             "shhhhh", //jwtseceret
@@ -119,7 +115,7 @@ app.post("/login", async (req, res) => {
                 expires: new Date(Date.now() + 30 * 60 * 1000),
                 httpOnly: true
             };
-            res.redirect("/home");
+            res.redirect("/");
 
         }
 
