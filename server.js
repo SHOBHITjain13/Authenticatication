@@ -12,7 +12,6 @@ const bodyParser = require('body-parser');
 const bcrypt = require("bcryptjs");
 const jwt = require('jsonwebtoken');
 
-const mongoUrl = "mongodb://127.0.0.1:27017/leapotUser";
 
 main().then(() => {
     console.log("Database connected");
@@ -21,7 +20,7 @@ main().then(() => {
 });
 
 async function main() {
-    await mongoose.connect(mongoUrl);
+    await mongoose.connect("mongodb://127.0.0.1:27017/leapotUser");
 }
 
 app.set("view engine", "ejs");
@@ -33,7 +32,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use(session({
-    secret: process.env.SECRET,
+    secret: "key",
     resave: false,
     saveUninitialized: true,
     cookie: { secure: false },
