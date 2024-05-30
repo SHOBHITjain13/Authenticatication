@@ -24,7 +24,7 @@ console.log('Google Client Secret:', GOOGLE_CLIENT_SECRET);
 main().then(() => {
     console.log("Database connected");
 }).catch((err) => {
-    console.log(err);
+    console.log(err.message);
 });
 
 async function main() {
