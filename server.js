@@ -84,7 +84,7 @@ passport.deserializeUser(async (id, cb) => {
 });
 
 app.get("/", (req, res) => {
-    res.send("This is Root path");
+    res.render("validation.ejs");
 });
 
 app.get("/validation", (req, res) => {
