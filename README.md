@@ -14,8 +14,8 @@ In this project user need to valid email so that he can access home page for cha
 - User registration and login with Email and using Google directly
 - Password encryption
 - Session management
-- JWT authentication (under process)
-- Role-based access control (under prcess)
+- JWT authentication ()
+- Role-based access control (under process)
 - Logout functionality
 
 ## Installation
@@ -39,19 +39,24 @@ In this project user need to valid email so that he can access home page for cha
 
   npm install
 
-4. Setup variables:
+4. Setup variables in .env file:
 
   PORT=3000
 
-  database = leapotUser
+  MongoDb database = leapotUser
 
  MONGODB_URI=your_mongodb_connection_string
 
  JWT_SECRET=your_jwt_secret
 
+5. Create database 
+- leapotuser
+
 ## Usage
-1. Run file
- node server.js
+1. Run schema file
+ `node user.js `
+- then 
+ `node server.js`
 
 2. Go to browser and search 
  http://localhost:3000/validation
