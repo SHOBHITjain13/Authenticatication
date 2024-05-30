@@ -1,17 +1,25 @@
+require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const path = require("path");
-const app = express();
 const mongoose = require("mongoose");
 const User = require("./models/user.js");
-const methodOverride = require("method-override");
 const cookieParser = require("cookie-parser");
-const bodyParser = require('body-parser');
 const bcrypt = require("bcryptjs");
 const jwt = require('jsonwebtoken');
+const authenticate = require("./authenticate.js");
 
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET;
+const MONGODB_URI = process.env.MONGODB_URI;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+
+// Debugging output
+console.log('Google Client ID:', GOOGLE_CLIENT_ID);
+console.log('Google Client Secret:', GOOGLE_CLIENT_SECRET);
 
 main().then(() => {
     console.log("Database connected");
@@ -20,19 +28,20 @@ main().then(() => {
 });
 
 async function main() {
-    await mongoose.connect("mongodb://127.0.0.1:27017/leapotUser");
+    await mongoose.connect(MONGODB_URI);
 }
+
+const app = express();
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.json());
 app.use(cookieParser());
-app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use(session({
-    secret: "key",
+    secret: JWT_SECRET,
     resave: false,
     saveUninitialized: true,
     cookie: { secure: false },
@@ -42,24 +51,38 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 passport.use(new GoogleStrategy({
-    clientID: "4602815557-0qerqr4e2quv245j1onagfq0ptk9944b.apps.googleusercontent.com",
-    clientSecret: "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",
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
     callbackURL: "http://localhost:3000/auth/google/callback",
-}, function (accessToken, refreshToken, profile, cb) {
-    cb(null, profile);
-}
-));
+}, async (accessToken, refreshToken, profile, cb) => {
+    try {
+        let user = await User.findOne({ googleId: profile.id });
+        if (!user) {
+            user = await User.create({
+                googleId: profile.id,
+                name: profile.displayName,
+                email: profile.emails[0].value
+            });
+        }
+        return cb(null, user);
+    } catch (err) {
+        return cb(err);
+    }
+}));
 
-passport.serializeUser(function (user, cb) {
-    cb(null, user);
+passport.serializeUser((user, cb) => {
+    cb(null, user.id);
 });
 
-passport.deserializeUser(function (obj, cb) {
-    cb(null, obj);
+passport.deserializeUser(async (id, cb) => {
+    try {
+        const user = await User.findById(id);
+        cb(null, user);
+    } catch (err) {
+        cb(err);
+    }
 });
 
-
-// Api for paths
 app.get("/", (req, res) => {
     res.send("This is Root path");
 });
@@ -68,52 +91,37 @@ app.get("/validation", (req, res) => {
     res.render("validation.ejs");
 });
 
-app.get("/home", (req, res) => {
-     res.render("home.ejs" , {
-            user: req.user
-        });
-});
-
 app.get("/register", (req, res) => {
     res.render("register.ejs", { message: null });
 });
 
 app.post("/register", async (req, res) => {
     try {
-
-        //colect data from req body
         const { name, email, password } = req.body;
-
-        // check if user already exist
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            res.render("register.ejs", { message: "User already exist" });
+            return res.render("register.ejs", { message: "User already exists" });
         }
-        //encrypt password
-        const encPassword = await bcrypt.hash(password, 10);
 
-        //save the user info
+        const encPassword = await bcrypt.hash(password, 10);
         const user = await User.create({
             name,
             email,
             password: encPassword
         });
 
-        //generate token and send it
-        const token = jwt.sign(
-            { id: user._id, email },
-            "shhhhh", //jwtseceret
-            {
-                expiresIn: "30m"
-            }
-        );
-        user.token = token;
-        user.password = undefined;
+        const token = jwt.sign({ id: user._id, email }, JWT_SECRET, { expiresIn: "30m" });
+        const options = {
+            expires: new Date(Date.now() + 30 * 60 * 1000),
+            httpOnly: true
+        };
 
+        res.cookie('token', token, options);
         res.redirect("/login");
 
     } catch (err) {
         console.log(err);
+        res.render("register.ejs", { message: "An error occurred" });
     }
 });
 
@@ -123,63 +131,56 @@ app.get("/login", (req, res) => {
 
 app.post("/login", async (req, res) => {
     try {
-        //get data from req body
         const { email, password } = req.body;
-
-        // //find the user in database
         const user = await User.findOne({ email });
-
-        // //if user not exist
         if (!user) {
-            res.render("login.ejs", { message: "User not exist" });
+            return res.render("login.ejs", { message: "User does not exist" });
         }
 
-        //match the user password
-        if (user && (await bcrypt.compare(password, user.password))) {
-            const token = jwt.sign(
-                { id: user._id },
-                "shhhhh", //jwtseceret
-                {
-                    expiresIn: "30m"
-                }
-            );
-            user.token = token;
-
-            //send the token in user cookie
-            const options = {
-                expires: new Date(Date.now() + 30 * 60 * 1000),
-                httpOnly: true
-            };
-            res.redirect("/home");
-
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.render("login.ejs", { message: "Invalid credentials" });
         }
+
+        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "30m" });
+        const options = {
+            expires: new Date(Date.now() + 30 * 60 * 1000),
+            httpOnly: true
+        };
+
+        res.cookie("token", token, options);
+        res.redirect("/home");
 
     } catch (err) {
         console.log(err);
+        res.render("login.ejs", { message: 'An error occurred' });
     }
 });
 
+app.get("/home", authenticate, (req, res) => {
+    res.render("home.ejs");
+});
+
 app.get("/logout", (req, res) => {
-    req.logout(function (err){
-        if(err){
+    req.logout((err) => {
+        if (err) {
             console.log(err);
-        }else{
-            res.redirect("/register");
+        } else {
+            res.redirect("/login");
         }
     });
 });
 
-app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"]}));
+app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
-app.get("/auth/google/callback", passport.authenticate("google", {failureRedirect: "/register"}), async (req, res) => {
+app.get("/auth/google/callback", passport.authenticate("google", { failureRedirect: "/register" }), (req, res) => {
     res.redirect("/home");
 });
 
-
 app.use((req, res) => {
-    res.status(404).send("Path not found!")
-})
+    res.status(404).send("Path not found!");
+});
 
-app.listen(3000, () => {
-    console.log("server is listening on port 3000");
+app.listen(PORT, () => {
+    console.log(`Server is listening on port ${PORT}`);
 });
