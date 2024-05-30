@@ -144,7 +144,6 @@ app.post("/login", async (req, res) => {
                 }
             );
             user.token = token;
-            user.password = password;
 
             //send the token in user cookie
             const options = {
@@ -174,10 +173,12 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
 
 app.get("/auth/google/callback", passport.authenticate("google", {failureRedirect: "/register"}), async (req, res) => {
     res.redirect("/home");
+});
+
+
+app.use((req, res) => {
+    res.status(404).send("Path not found!")
 })
-
-
-
 
 app.listen(3000, () => {
     console.log("server is listening on port 3000");
